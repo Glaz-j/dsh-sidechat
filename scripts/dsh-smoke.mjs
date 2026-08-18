@@ -68,15 +68,17 @@ try {
     throw new Error(`DSH Loader smoke exited ${String(result.code)} (${String(result.signal)})`)
   }
   const expected = [
-    '[dsh-sidechat] plugin loaded (observer milestone)',
+    '[dsh-sidechat] plugin loaded (stable snapshot milestone)',
     '[dsh-sidechat] session=sidechat-loader-smoke seq=0 event=turn/start',
     '[dsh-sidechat] session=sidechat-loader-smoke seq=1 event=turn/end',
+    '[dsh-sidechat] session=sidechat-loader-smoke seq=2 event=turn/start',
+    '[dsh-smoke] stable snapshot boundary=1 events=2',
     '[dsh-sidechat] plugin unloaded',
   ]
   for (const line of expected) {
     if (!stdout.includes(line)) throw new Error(`missing loader proof: ${line}`)
   }
-  console.log('[dsh-smoke] bundle loaded and observed committed events through the real Loader')
+  console.log('[dsh-smoke] bundle loaded, observed events, and captured an isolated stable snapshot')
 } finally {
   await rm(scratch, { recursive: true, force: true })
 }

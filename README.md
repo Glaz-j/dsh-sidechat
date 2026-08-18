@@ -2,12 +2,14 @@
 
 `dsh-sidechat` is an independent plugin for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Its long-term goal is an isolated, disposable side conversation that can explain an Agent's committed trajectory without changing the parent Agent unless the user explicitly promotes a conclusion.
 
-This first executable milestone intentionally implements only:
+The current executable milestone implements:
 
 - installation as an out-of-tree DSH bundle;
 - lifecycle proof through load and unload messages;
 - read-only observation of committed `session/event` records;
-- privacy-preserving event summaries that exclude prompts, message text, tool arguments, and tool results.
+- privacy-preserving event summaries that exclude prompts, message text, tool arguments, and tool results;
+- immutable snapshots through the latest authoritative `turn/end` boundary;
+- exact reconstruction of the model-visible message surface at that boundary.
 
 It does not yet create Side Chat conversations, call an LLM, modify the DSH Web UI, steer an Agent, or persist plugin-owned state.
 
@@ -17,10 +19,21 @@ It does not yet create Side Chat conversations, call an LLM, modify the DSH Web 
 flowchart LR
     DSH[DeepSeek Harness] -->|committed session/event| O[Side Chat Observer]
     O -->|session id + seq + type| L[Host log]
+    DSH -->|read event prefix| S[Stable Snapshot Service]
+    S -->|events + model-visible messages| C[Future Side Chat]
     O -. no writes .-> P[Parent Agent]
+    S -. no writes .-> P
 ```
 
-The observer receives events only after DSH appends them to the session log. It never calls `session.append()`, `agent.steer()`, or `agent.followup()`.
+The observer receives events only after DSH appends them to the session log. The snapshot service finds the latest `turn/end`, copies only that closed prefix, and folds it with DSH's canonical surface rules. A turn that is still running is excluded. Existing snapshots are detached and frozen, so later parent activity cannot change them. Neither component calls `session.append()`, `agent.steer()`, or `agent.followup()`.
+
+The host-side API is available as:
+
+```ts
+const snapshot = ctx.sideChatSnapshots.capture(sessionId)
+```
+
+`snapshot.events` contains the canonical prefix and `snapshot.messages` contains the exact model-visible surface reconstructed from that prefix. Before the first `turn/end`, both arrays are empty and `boundarySeq` is `null`.
 
 ## Requirements
 
@@ -55,7 +68,7 @@ Git dependencies build through the package's `prepare` script. pnpm 10 and newer
 The host prints:
 
 ```text
-[dsh-sidechat] plugin loaded (observer milestone)
+[dsh-sidechat] plugin loaded (stable snapshot milestone)
 ```
 
 Committed session activity produces metadata-only lines such as:
@@ -70,7 +83,7 @@ Remove the bundle with:
 pnpm dsh plugin --profile web remove dsh-sidechat
 ```
 
-Maintainers with a local Harness checkout can run the isolated Loader smoke test by setting `DSH_HARNESS_ROOT`, then running `pnpm smoke:dsh`. The script boots a minimal real Cordis tree, loads the built bundle, commits two session events, verifies the observer output, and disposes the tree.
+Maintainers with a local Harness checkout can run the isolated Loader smoke test by setting `DSH_HARNESS_ROOT`, then running `pnpm smoke:dsh`. The script boots a minimal real Cordis tree, loads the built bundle, commits a closed turn plus a later open turn, verifies the observer output and immutable snapshot boundary, and disposes the tree.
 
 ## Configuration
 
@@ -100,7 +113,7 @@ Set `observeEvents: false` to keep only the lifecycle proof.
 
 ## Roadmap
 
-1. Stable snapshot at the last completed turn.
+1. ✅ Stable snapshot at the last closed turn.
 2. Single-turn isolated Side Chat.
 3. Ephemeral multi-turn Side Chat with disposal.
 4. Live committed-event snapshots.

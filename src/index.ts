@@ -1,7 +1,7 @@
 /**
- * Read-only DeepSeek Harness session observer, the first executable slice of
- * Side Chat. It proves bundle loading and committed session-event access
- * without changing an Agent or its durable history.
+ * Read-only DeepSeek Harness session observer and stable-snapshot provider.
+ * It exposes a closed-turn context boundary without changing an Agent or its
+ * durable history.
  *
  * @module dsh-sidechat
  */
@@ -9,8 +9,18 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import Schema from '@deepseek-ai/schemastery'
+import { installStableSnapshotService } from './stable-snapshot.ts'
 
-/** Deployment configuration for the observer milestone. */
+export {
+  captureStableSnapshot,
+  findStableTurnBoundary,
+  installStableSnapshotService,
+  StableSnapshotService,
+  StableSnapshotSessionNotFoundError,
+} from './stable-snapshot.ts'
+export type { SnapshotMessage, StableSnapshot } from './stable-snapshot.ts'
+
+/** Deployment configuration for optional metadata-only event observation. */
 export interface Config {
   /** Whether committed session events are written to the host log. */
   observeEvents: boolean
@@ -82,14 +92,16 @@ export function shouldObserveEvent(
 }
 
 /**
- * Mount the first Side Chat milestone into a DSH Cordis context.
+ * Mount the Side Chat snapshot service and optional observer.
  *
  * @param ctx - Settled Harness context containing the session service.
  * @param config - Validated observer configuration.
  */
 export function apply(ctx: Context, config: Config): void {
+  installStableSnapshotService(ctx)
+
   ctx.effect(() => {
-    console.log('[dsh-sidechat] plugin loaded (observer milestone)')
+    console.log('[dsh-sidechat] plugin loaded (stable snapshot milestone)')
     return () => console.log('[dsh-sidechat] plugin unloaded')
   }, 'dsh-sidechat.lifecycle')
 
