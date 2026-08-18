@@ -50,12 +50,7 @@ After cloning or installing directly from GitHub, use:
 pnpm dsh plugin --profile web add github:Glaz-j/dsh-sidechat
 ```
 
-Git dependencies build through the package's `prepare` script. pnpm 10 and newer may require the profile's `pnpm-workspace.yaml` to explicitly allow that reviewed build before repeating the command:
-
-```yaml
-allowBuilds:
-  dsh-sidechat: true
-```
+Git dependencies build through the package's `prepare` script. pnpm 10 and newer may stop the first installation and print the exact codeload package key that must be added under `allowBuilds` in the profile's `pnpm-workspace.yaml`. Copy that key verbatim, set it to `true`, and repeat the installation command.
 
 The host prints:
 
