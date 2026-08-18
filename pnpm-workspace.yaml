@@ -1,0 +1,6 @@
+packages:
+  - '.'
+
+# Reviewed native build needed by tsdown and Vitest.
+allowBuilds:
+  esbuild: true
