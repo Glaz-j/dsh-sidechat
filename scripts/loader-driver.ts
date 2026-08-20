@@ -103,6 +103,11 @@ try {
   if (snapshot.boundarySeq !== 2 || snapshot.events.length !== 3 || snapshot.messages.length !== 1) {
     throw new Error('stable snapshot did not capture the closed parent turn')
   }
+  if (snapshot.currentTurn.captureSeq !== 4
+    || snapshot.currentTurn.turn !== 2
+    || !JSON.stringify(snapshot.currentTurn.messages).includes('open smoke secret')) {
+    throw new Error('snapshot did not freeze the committed current-turn message')
+  }
   if (!ctx.commands.list(parent).some((command: { name: string }) => command.name === 'sidechat')) {
     throw new Error('/sidechat is missing from the command catalog')
   }
@@ -130,9 +135,13 @@ try {
   if (child.session.header.seedLength !== 3) {
     throw new Error('fork child did not stop its seed at the completed parent turn')
   }
-  const childLog = JSON.stringify(child.session.events)
-  if (!childLog.includes('closed smoke context') || childLog.includes('open smoke secret')) {
+  const seedLog = JSON.stringify(child.session.events.slice(0, child.session.header.seedLength))
+  if (!seedLog.includes('closed smoke context') || seedLog.includes('open smoke secret')) {
     throw new Error('fork child inherited the wrong parent transcript boundary')
+  }
+  const childLog = JSON.stringify(child.session.events)
+  if (!childLog.includes('open smoke secret')) {
+    throw new Error('fork child log did not receive the current-turn observation packet')
   }
 
   const request = adapter.requests[0]
@@ -144,6 +153,9 @@ try {
   }
   if (!JSON.stringify(request.messages).includes('explain the choice')) {
     throw new Error('SideChat question did not reach the child Agent turn')
+  }
+  if (!JSON.stringify(request.messages).includes('open smoke secret')) {
+    throw new Error('SideChat request did not receive the frozen current-turn observation')
   }
   const questionRun = parent.session.events.findLast((event: { type: string; data?: { name?: string } }) =>
     event.type === 'command/run' && event.data?.name === 'sidechat')
@@ -160,10 +172,13 @@ try {
   if (ctx.agents.get(SessionId(childId)) !== undefined) {
     throw new Error('settled one-shot SideChat child was not disposed')
   }
-  console.log('[dsh-smoke] real fork child inherited the closed turn, ran tool-free, and settled')
+  console.log('[dsh-smoke] real fork kept a closed seed, received the frozen current turn, ran tool-free, and settled')
 
   if (snapshot.boundarySeq !== 2 || snapshot.events.length !== 3) {
     throw new Error('stable snapshot changed after its parent advanced')
+  }
+  if (snapshot.currentTurn.captureSeq !== 4 || snapshot.currentTurn.messages.length !== 1) {
+    throw new Error('current-turn observation changed after its parent advanced')
   }
 } finally {
   adapter.release.resolve()

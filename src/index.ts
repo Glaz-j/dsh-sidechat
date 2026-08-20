@@ -17,8 +17,10 @@ export {
   executeSideChatCommand,
   installSideChatTaskService,
   registerSideChatCommand,
+  renderCurrentTurnObservation,
   renderSnapshotSummary,
   resolveSideChatRoute,
+  SIDECHAT_OBSERVATION_MAX_CHARS,
   SIDECHAT_TOOL_ALLOWLIST,
   SideChatTaskService,
 } from './command.ts'
@@ -30,7 +32,12 @@ export {
   StableSnapshotService,
   StableSnapshotSessionNotFoundError,
 } from './stable-snapshot.ts'
-export type { SnapshotMessage, StableSnapshot } from './stable-snapshot.ts'
+export type {
+  CurrentTurnMessage,
+  CurrentTurnSnapshot,
+  SnapshotMessage,
+  StableSnapshot,
+} from './stable-snapshot.ts'
 
 /** Deployment configuration for optional metadata-only event observation. */
 export interface Config {

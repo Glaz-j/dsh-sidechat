@@ -8,9 +8,10 @@ The current version implements:
 - privacy-preserving observation of committed `session/event` metadata;
 - immutable snapshots through the latest authoritative `turn/end` boundary;
 - exact reconstruction of the model-visible message surface at that boundary;
+- a frozen, bounded observation packet for committed messages in the currently running turn;
 - `/sidechat` snapshot inspection through DSH's native command catalog;
 - `/sidechat <question>` as a native one-shot DSH fork subagent;
-- an isolated SideChat persona over the parent's latest completed-turn prefix;
+- an isolated SideChat persona over the stable prefix plus the capture-time current-turn packet;
 - an empty child tool allowlist for the initial strictly read-only version;
 - native DSH subagent transcripts, status, timing, cancellation, and Web navigation;
 - `/sidechat cancel [<request-id>]` for active SideChat children.
@@ -25,7 +26,7 @@ In a DSH Web conversation, enter:
 /sidechat
 ```
 
-The command reports the parent session id, latest completed turn, stable event boundary, event count, model-visible message count, and active SideChat count. It does not call an LLM.
+The command reports the parent session id, latest completed turn, stable event boundary, current-turn status and capture sequence, visible message counts, and active SideChat count. It does not call an LLM.
 
 Ask one isolated question with:
 
@@ -33,9 +34,9 @@ Ask one isolated question with:
 /sidechat Why did the Agent choose this approach?
 ```
 
-The command returns after DSH publishes the child, without waiting for its model turn to finish. The main chat can immediately continue. Open the subagent list in the parent conversation header to watch the SideChat transcript, reasoning, terminal status, and token usage. The child uses the parent's latest provider/model route and DSH's `fork` provider, whose seed ends at the last completed parent turn. An active parent turn is excluded.
+The command returns after DSH publishes the child, without waiting for its model turn to finish. The main chat can immediately continue. Open the subagent list in the parent conversation header to watch the SideChat transcript, reasoning, terminal status, and token usage. The child uses the parent's latest provider/model route and DSH's `fork` provider. Its native seed still ends at the last completed parent turn; the plugin separately injects a frozen observation of model-visible messages committed in the active turn through the reported capture sequence. That packet does not update after the child starts.
 
-The initial observer child receives an empty global tool allowlist. It can explain committed conversation history but cannot inspect the live parent turn, list the parent's sibling subagents, modify files, run commands, or steer another agent. Parent-bound read-only inspection tools are intentionally deferred instead of exposing the ordinary `list_agents` tool, which would list the SideChat child's own descendants.
+The initial observer child receives an empty global tool allowlist. It can explain stable history and the frozen current-turn packet, but cannot poll later parent activity, list the parent's sibling subagents, modify files, run commands, or steer another agent. Parent-bound read-only inspection tools are intentionally deferred instead of exposing the ordinary `list_agents` tool, which would list the SideChat child's own descendants.
 
 Cancel the newest request, or one shown request id, with:
 
@@ -51,10 +52,11 @@ flowchart LR
     U[/sidechat or /sidechat question] --> C[DSH Command Registry]
     DSH[DeepSeek Harness] -->|committed session/event| O[SideChat Observer]
     O -->|session id + seq + type| L[Host log]
-    C -->|current Agent session id| S[Stable Snapshot Service]
+    C -->|current Agent session id| S[Hybrid Snapshot Service]
     DSH -->|read event prefix| S
     S -->|metadata| R[Snapshot Command Result]
-    S -->|boundary validation| Q[Native fork Subagent]
+    S -->|closed prefix boundary| Q[Native fork Subagent]
+    S -->|frozen current-turn packet| Q
     Q -->|publish child id| A[Immediate Command Receipt]
     A -->|composer unlocks| P[Parent Agent]
     Q -->|own Agent loop| T[Read-only SideChat Transcript]
@@ -64,7 +66,7 @@ flowchart LR
     Q -. empty tool allowlist; no parent steering .-> P
 ```
 
-The observer receives events only after DSH appends them to the session log. The snapshot service finds the latest `turn/end`, copies only that closed prefix, and folds it with DSH's canonical surface rules. A turn that is still running is excluded. Existing snapshots are detached and frozen, so later parent activity cannot change them. SideChat never calls `agent.steer()` or `agent.followup()` on the parent.
+The observer receives events only after DSH appends them to the session log. The snapshot service finds the latest `turn/end`, copies that closed prefix, and folds it with DSH's canonical surface rules. It then scans the open turn only for append-origin `user/message`, finalized `assistant/message`, and `tool/result` events. Request headers, request context, raw assistant chunks, command lifecycle records, replacement copies, and other internal events are excluded. The packet is capped at 24,000 prompt characters with deterministic middle truncation. Existing snapshots are detached and frozen, so later parent activity cannot change them. SideChat never calls `agent.steer()` or `agent.followup()` on the parent.
 
 DSH's command runtime records the standard log-only `command/run` and `command/done` lifecycle around every slash command. SideChat sets `recordInput: false`, so the private question is absent from the parent command record. It delegates through `ctx.subagents.start('fork', ...)` with a dedicated persona and `{ allow: [] }` tool restriction. DSH owns the child session, full Agent loop, lifecycle events, persistence, and native Web transcript. The plugin owns the returned one-shot run, disposes it after settlement, and aborts and awaits active children during unload.
 
@@ -74,7 +76,7 @@ The host-side API is available as:
 const snapshot = ctx.sideChatSnapshots.capture(sessionId)
 ```
 
-`snapshot.events` contains the canonical prefix and `snapshot.messages` contains the exact model-visible surface reconstructed from that prefix. Before the first `turn/end`, both arrays are empty and `boundarySeq` is `null`.
+`snapshot.events` contains the canonical closed prefix and `snapshot.messages` contains the exact model-visible surface reconstructed from that prefix. `snapshot.currentTurn` contains the capture sequence, open-turn identity, event count, and filtered visible messages. Before the first `turn/end`, the native fork starts fresh but SideChat can still answer when a current turn is running and its observation packet contains the relevant evidence.
 
 ## Requirements
 
@@ -124,7 +126,7 @@ Remove the bundle with:
 pnpm dsh plugin --profile web remove dsh-sidechat
 ```
 
-Maintainers with a local Harness checkout can run the isolated Loader smoke test by setting `DSH_HARNESS_ROOT`, then running `pnpm smoke:dsh`. The script boots a real in-process Agent Loop with DSH's actual `fork` provider, loads the built bundle, verifies native child lineage, completed-turn inheritance, observer persona and tool restriction, confirms question privacy and settlement, and disposes the tree.
+Maintainers with a local Harness checkout can run the isolated Loader smoke test by setting `DSH_HARNESS_ROOT`, then running `pnpm smoke:dsh`. The script boots a real in-process Agent Loop with DSH's actual `fork` provider, loads the built bundle, verifies native child lineage, the closed fork seed and separately injected current-turn observation, observer persona and tool restriction, confirms question privacy and settlement, and disposes the tree.
 
 ## Configuration
 
@@ -159,9 +161,9 @@ Set `observeEvents: false` to keep only lifecycle proof.
 
 1. Complete: stable snapshot at the last closed turn.
 2. Complete: native one-shot fork observer through `/sidechat <question>`.
-3. Parent-bound read-only status and event-query tools.
-4. Ephemeral multi-turn SideChat with disposal.
-5. Live committed-event snapshots.
+3. Complete: frozen committed-message snapshots of the current parent turn.
+4. Parent-bound read-only status and event-query tools.
+5. Ephemeral multi-turn SideChat with disposal.
 6. Explicit discard and follow-up promotion.
 
 ## License

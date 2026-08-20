@@ -36,7 +36,7 @@ describe('stable boundary selection', () => {
 
     expect(findStableTurnBoundary(session.events)).toBeUndefined()
     expect(captureStableSnapshot(session)).toMatchObject({
-      id: 'stable:open-only:empty',
+      id: 'sidechat:open-only:stable-empty:capture-0',
       sessionId: 'open-only',
       sourceLastSeq: 0,
       boundarySeq: null,
@@ -44,6 +44,14 @@ describe('stable boundary selection', () => {
       turnEndReason: null,
       events: [],
       messages: [],
+      currentTurn: {
+        status: 'running',
+        turn: 1,
+        startSeq: 0,
+        captureSeq: 0,
+        eventCount: 1,
+        messages: [],
+      },
     })
   })
 
@@ -96,7 +104,7 @@ describe('stable snapshot capture', () => {
 
     expect(session.events).toHaveLength(beforeCapture)
     expect(snapshot).toMatchObject({
-      id: 'stable:stable-prefix:5',
+      id: 'sidechat:stable-prefix:stable-5:capture-7',
       sessionId: 'stable-prefix',
       sourceLastSeq: 7,
       boundarySeq: 5,
@@ -108,9 +116,62 @@ describe('stable snapshot capture', () => {
     expect(snapshot.messages[0]?.content).toEqual([
       { type: 'text', text: 'compacted closed context' },
     ])
+    expect(snapshot.currentTurn).toMatchObject({
+      status: 'running',
+      turn: 2,
+      startSeq: 6,
+      captureSeq: 7,
+      eventCount: 2,
+    })
+    expect(snapshot.currentTurn.messages).toEqual([{
+      seq: 7,
+      message: expect.objectContaining({
+        role: 'user',
+        content: [{ type: 'text', text: 'still running' }],
+      }),
+    }])
     expect(Object.isFrozen(snapshot)).toBe(true)
     expect(Object.isFrozen(snapshot.events)).toBe(true)
     expect(Object.isFrozen(snapshot.messages)).toBe(true)
+    expect(Object.isFrozen(snapshot.currentTurn)).toBe(true)
+    expect(Object.isFrozen(snapshot.currentTurn.messages)).toBe(true)
+    expect(Object.isFrozen(snapshot.currentTurn.messages[0])).toBe(true)
+  })
+
+  it('keeps current-turn model messages while filtering internal and replacement events', () => {
+    const session = Session.create(SessionId('filtered-current'))
+    session.append('turn/start', { turn: 1 })
+    appendUserMessage(session, 'visible current request')
+    session.append('assistant/chunk', {
+      turn: 1,
+      step: 1,
+      chunk: { type: 'text-delta', index: 0, text: 'private partial chunk' },
+    })
+    session.append('todo/write', { todos: [] })
+    session.append('assistant/message', {
+      turn: 1,
+      step: 1,
+      message: createAssistantMessage({
+        content: [],
+        source: { provider: 'test', model: 'empty-current' },
+      }),
+    }, { surfaceOp: 'append' })
+    session.append('user/message', createUserMessage({
+      content: [{ type: 'text', text: 'replacement-only context' }],
+      source: { kind: 'plugin', plugin: 'test-compaction' },
+    }), {
+      surfaceOp: { op: 'replace', start: 1, end: 1 },
+      sourceEventSeqs: [1],
+    })
+
+    const snapshot = captureStableSnapshot(session)
+
+    expect(snapshot.currentTurn.eventCount).toBe(6)
+    expect(snapshot.currentTurn.messages.map(entry => entry.seq)).toEqual([1])
+    const serialized = JSON.stringify(snapshot.currentTurn.messages)
+    expect(serialized).toContain('visible current request')
+    expect(serialized).not.toContain('private partial chunk')
+    expect(serialized).not.toContain('replacement-only context')
   })
 
   it('does not change after the parent session advances', () => {
@@ -122,12 +183,17 @@ describe('stable snapshot capture', () => {
 
     session.append('turn/start', { turn: 2 })
     appendUserMessage(session, 'second')
+    const openSnapshot = captureStableSnapshot(session)
+    appendUserMessage(session, 'late second detail')
     session.append('turn/end', { turn: 2, reason: { kind: 'completed' } })
 
     expect(snapshot.boundarySeq).toBe(2)
     expect(snapshot.events).toHaveLength(3)
     expect(snapshot.messages).toHaveLength(1)
-    expect(captureStableSnapshot(session).boundarySeq).toBe(5)
+    expect(snapshot.currentTurn).toMatchObject({ status: 'idle', eventCount: 0, messages: [] })
+    expect(openSnapshot.currentTurn.messages).toHaveLength(1)
+    expect(JSON.stringify(openSnapshot.currentTurn.messages)).not.toContain('late second detail')
+    expect(captureStableSnapshot(session).boundarySeq).toBe(6)
   })
 })
 

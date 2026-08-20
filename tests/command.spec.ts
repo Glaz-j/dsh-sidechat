@@ -15,9 +15,11 @@ import * as SideChat from '../src/index.ts'
 import {
   captureStableSnapshot,
   DEFAULT_SIDECHAT_PROVIDER,
+  renderCurrentTurnObservation,
   renderSnapshotSummary,
   resolveSideChatRoute,
   SideChatTaskService,
+  SIDECHAT_OBSERVATION_MAX_CHARS,
   SIDECHAT_TOOL_ALLOWLIST,
   type Config,
   type StableSnapshot,
@@ -136,6 +138,7 @@ describe('/sidechat native observer subagent', () => {
     expect(execution?.result).toMatchObject({ kind: 'success', text: expect.stringContaining('SideChat snapshot ready.') })
     expect(execution?.result.text).toContain('Stable turn: 1')
     expect(execution?.result.text).toContain('Boundary seq: 2')
+    expect(execution?.result.text).toContain('Current turn: none (idle)')
     expect(execution?.result.text).toContain('Running SideChat agents: 0')
     expect(test.provider.requests).toHaveLength(0)
     await test.ctx.fiber.dispose()
@@ -177,10 +180,14 @@ describe('/sidechat native observer subagent', () => {
     expect(request.persona).toContain('read-only observer')
     expect(request.prompt).toEqual([{
       type: 'text',
-      text: expect.stringContaining('stable turn 1 (boundary seq 2)'),
+      text: expect.stringContaining('Stable inherited boundary: turn 1, boundary seq 2'),
     }])
     expect(JSON.stringify(request.prompt)).toContain('Why did the parent choose that approach?')
-    expect(JSON.stringify(request.prompt)).not.toContain('open secret')
+    expect(JSON.stringify(request.prompt)).toContain('open secret')
+    // The command lifecycle event itself is committed at seq 5 but filtered
+    // from the observation payload; the capture boundary still reports it.
+    expect(JSON.stringify(request.prompt)).toContain('Observation capture seq: 5')
+    expect(JSON.stringify(request.prompt)).toContain('Current turn: 2 (running)')
     const commandRun = test.session.events.find(event =>
       event.type === 'command/run' && event.data.name === 'sidechat')
     expect(commandRun?.data).not.toHaveProperty('args')
@@ -197,18 +204,31 @@ describe('/sidechat native observer subagent', () => {
     await test.ctx.fiber.dispose()
   })
 
-  it('rejects missing boundaries, model routes, providers, context inheritance, capabilities, and startup failures', async () => {
+  it('supports a first open turn and rejects empty context, missing routes, invalid providers, and startup failures', async () => {
     const noTurn = await mount()
     noTurn.session.append('turn/start', { turn: 1 })
     appendUserMessage(noTurn.session, 'still open')
-    await expect(noTurn.ctx.commands.execute(
+    const firstTurn = await noTurn.ctx.commands.execute(
       noTurn.agent,
       '/sidechat What happened?',
       new AbortController().signal,
-    )).resolves.toMatchObject({
-      result: { kind: 'error', text: expect.stringContaining('at least one completed parent turn') },
-    })
+    )
+    expect(firstTurn?.result).toMatchObject({ kind: 'success' })
+    expect(JSON.stringify(noTurn.provider.requests[0]?.prompt)).toContain('Stable inherited boundary: none')
+    expect(JSON.stringify(noTurn.provider.requests[0]?.prompt)).toContain('still open')
+    noTurn.provider.runs[0]!.result.resolve({ output: [], stopReason: 'completed' })
+    await noTurn.ctx.sideChatTasks.whenIdle()
     await noTurn.ctx.fiber.dispose()
+
+    const emptyContext = await mount()
+    await expect(emptyContext.ctx.commands.execute(
+      emptyContext.agent,
+      '/sidechat What happened?',
+      new AbortController().signal,
+    )).resolves.toMatchObject({
+      result: { kind: 'error', text: expect.stringContaining('completed parent turn or a currently running turn') },
+    })
+    await emptyContext.ctx.fiber.dispose()
 
     const noRoute = await mount()
     closeTurn(noRoute.session)
@@ -348,8 +368,29 @@ describe('/sidechat native observer subagent', () => {
   it('renders empty and defensive summaries', () => {
     const empty = captureStableSnapshot(Session.create(SessionId('empty-summary')))
     expect(renderSnapshotSummary(empty, 2)).toContain('Running SideChat agents: 2')
+    expect(renderCurrentTurnObservation(empty)).toEqual({
+      text: '(no committed model-visible messages)',
+      truncated: false,
+    })
+    const running = Session.create(SessionId('running-summary'))
+    running.append('turn/start', { turn: 1 })
+    expect(renderSnapshotSummary(captureStableSnapshot(running))).toContain('SideChat snapshot ready.')
     const defensive = { ...empty, boundarySeq: 0, turn: 1 } as StableSnapshot
     expect(renderSnapshotSummary(defensive)).toContain('Turn result: unknown')
+  })
+
+  it('bounds a large current-turn observation while preserving its beginning and end', () => {
+    const session = Session.create(SessionId('large-observation'))
+    session.append('turn/start', { turn: 1 })
+    appendUserMessage(session, `BEGIN-${'x'.repeat(30_000)}-END`)
+
+    const rendered = renderCurrentTurnObservation(captureStableSnapshot(session))
+
+    expect(rendered.truncated).toBe(true)
+    expect(rendered.text).toHaveLength(SIDECHAT_OBSERVATION_MAX_CHARS)
+    expect(rendered.text).toContain('BEGIN-')
+    expect(rendered.text).toContain('-END')
+    expect(rendered.text).toContain('[current-turn observation truncated in the middle]')
   })
 
   it('prefers logged routes and validates every missing component', () => {

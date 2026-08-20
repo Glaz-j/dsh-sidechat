@@ -88,7 +88,7 @@ try {
     '[dsh-sidechat] session=sidechat-loader-smoke seq=0 event=turn/start',
     '[dsh-sidechat] session=sidechat-loader-smoke seq=2 event=turn/end',
     '[dsh-smoke] /sidechat snapshot boundary=2 messages=1',
-    '[dsh-smoke] real fork child inherited the closed turn, ran tool-free, and settled',
+    '[dsh-smoke] real fork kept a closed seed, received the frozen current turn, ran tool-free, and settled',
     '[dsh-sidechat] plugin unloaded',
   ]
   for (const line of expected) {
