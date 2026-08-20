@@ -1,5 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
+import CommandRuntime from '@deepseek-ai/dsh-commands'
+import LlmRuntime from '@deepseek-ai/dsh-llm'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import SessionStore, { SessionId } from '@deepseek-ai/dsh-session'
 import * as SideChat from '../src/index.ts'
 import {
@@ -10,7 +13,14 @@ import {
   type Config,
 } from '../src/index.ts'
 
-const enabled: Config = { observeEvents: true, eventTypes: [] }
+const enabled: Config = { observeEvents: true, eventTypes: [], subagentProvider: 'fork' }
+
+async function mountRequiredServices(ctx: Context): Promise<void> {
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(LlmRuntime)
+  await ctx.plugin(CommandRuntime)
+  await ctx.plugin(SubagentRuntime)
+}
 
 afterEach(() => {
   vi.restoreAllMocks()
@@ -44,7 +54,7 @@ describe('Cordis plugin', () => {
   it('observes committed DSH session events without appending its own events', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const ctx = new Context()
-    await ctx.plugin(SessionStore)
+    await mountRequiredServices(ctx)
     await ctx.plugin(SideChat, enabled)
     const session = ctx.sessions.create(SessionId('isolation-probe'))
     const before = session.events.length
@@ -61,10 +71,11 @@ describe('Cordis plugin', () => {
   it('can load with event observation disabled', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const ctx = new Context()
-    await ctx.plugin(SessionStore)
-    await ctx.plugin({ name: 'sidechat-disabled', apply }, {
+    await mountRequiredServices(ctx)
+    await ctx.plugin({ name: 'sidechat-disabled', inject: SideChat.inject, apply }, {
       observeEvents: false,
       eventTypes: [],
+      subagentProvider: 'fork',
     })
     const session = ctx.sessions.create(SessionId('disabled-probe'))
 
@@ -77,10 +88,11 @@ describe('Cordis plugin', () => {
   it('applies the configured event-type allowlist to the live feed', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const ctx = new Context()
-    await ctx.plugin(SessionStore)
+    await mountRequiredServices(ctx)
     await ctx.plugin(SideChat, {
       observeEvents: true,
       eventTypes: ['turn/end'],
+      subagentProvider: 'fork',
     })
     const session = ctx.sessions.create(SessionId('filtered-probe'))
 

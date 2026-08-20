@@ -4,3 +4,4 @@
       config:
         observeEvents: true
         eventTypes: []
+        subagentProvider: fork

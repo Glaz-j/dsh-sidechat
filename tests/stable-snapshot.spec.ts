@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from 'vitest'
 import { Context } from '@deepseek-ai/cordis'
-import { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import CommandRuntime from '@deepseek-ai/dsh-commands'
+import LlmRuntime, { createAssistantMessage, createUserMessage } from '@deepseek-ai/dsh-llm'
+import SubagentRuntime from '@deepseek-ai/dsh-subagent'
 import SessionStore, { Session, SessionId } from '@deepseek-ai/dsh-session'
 import * as SideChat from '../src/index.ts'
 import {
@@ -10,7 +12,14 @@ import {
   type Config,
 } from '../src/index.ts'
 
-const disabledObserver: Config = { observeEvents: false, eventTypes: [] }
+const disabledObserver: Config = { observeEvents: false, eventTypes: [], subagentProvider: 'fork' }
+
+async function mountRequiredServices(ctx: Context): Promise<void> {
+  await ctx.plugin(SessionStore)
+  await ctx.plugin(LlmRuntime)
+  await ctx.plugin(CommandRuntime)
+  await ctx.plugin(SubagentRuntime)
+}
 
 function appendUserMessage(session: Session, text: string): void {
   session.append('user/message', createUserMessage({
@@ -126,7 +135,7 @@ describe('snapshot service', () => {
   it('captures a live session by id without writing to it', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const ctx = new Context()
-    await ctx.plugin(SessionStore)
+    await mountRequiredServices(ctx)
     await ctx.plugin(SideChat, disabledObserver)
     const session = ctx.sessions.create(SessionId('service-parent'))
     session.append('turn/start', { turn: 1 })
@@ -143,7 +152,7 @@ describe('snapshot service', () => {
   it('reports an unknown live session with a typed error', async () => {
     vi.spyOn(console, 'log').mockImplementation(() => undefined)
     const ctx = new Context()
-    await ctx.plugin(SessionStore)
+    await mountRequiredServices(ctx)
     await ctx.plugin(SideChat, disabledObserver)
 
     expect(() => ctx.sideChatSnapshots.capture('missing')).toThrow(

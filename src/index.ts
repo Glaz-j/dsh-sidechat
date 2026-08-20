@@ -9,8 +9,20 @@
 import type { Context } from '@deepseek-ai/cordis'
 import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import Schema from '@deepseek-ai/schemastery'
+import { installSideChatTaskService, registerSideChatCommand } from './command.ts'
 import { installStableSnapshotService } from './stable-snapshot.ts'
 
+export {
+  DEFAULT_SIDECHAT_PROVIDER,
+  executeSideChatCommand,
+  installSideChatTaskService,
+  registerSideChatCommand,
+  renderSnapshotSummary,
+  resolveSideChatRoute,
+  SIDECHAT_TOOL_ALLOWLIST,
+  SideChatTaskService,
+} from './command.ts'
+export type { SideChatRoute, SideChatTaskReceipt } from './command.ts'
 export {
   captureStableSnapshot,
   findStableTurnBoundary,
@@ -26,11 +38,14 @@ export interface Config {
   observeEvents: boolean
   /** Event types to include; an empty list includes every event type. */
   eventTypes: string[]
+  /** DSH provider used to create observable parent-history fork children. */
+  subagentProvider: string
 }
 /** Runtime validation and defaults for {@link Config}. */
 export const Config: Schema<Config> = Schema.object({
   observeEvents: Schema.boolean().default(true),
   eventTypes: Schema.array(Schema.string()).default([]),
+  subagentProvider: Schema.string().default('fork'),
 })
 
 /** A privacy-preserving summary of one committed session event. */
@@ -46,8 +61,8 @@ export interface ObservedSessionEvent {
 /** Plugin name displayed by Cordis and in lifecycle messages. */
 export const name = 'dsh-sidechat'
 
-/** DSH services that must exist before the observer is mounted. */
-export const inject = ['sessions']
+/** DSH services that must exist before the command and observer are mounted. */
+export const inject = ['sessions', 'commands', 'subagents']
 
 /**
  * Reduce a DSH event to fields safe for the observer milestone.
@@ -99,9 +114,11 @@ export function shouldObserveEvent(
  */
 export function apply(ctx: Context, config: Config): void {
   installStableSnapshotService(ctx)
+  installSideChatTaskService(ctx, config.subagentProvider)
+  registerSideChatCommand(ctx)
 
   ctx.effect(() => {
-    console.log('[dsh-sidechat] plugin loaded (stable snapshot milestone)')
+    console.log('[dsh-sidechat] plugin loaded (native observer subagent)')
     return () => console.log('[dsh-sidechat] plugin unloaded')
   }, 'dsh-sidechat.lifecycle')
 
