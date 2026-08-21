@@ -11,6 +11,11 @@ import type { Session, SessionEvent } from '@deepseek-ai/dsh-session'
 import Schema from '@deepseek-ai/schemastery'
 import { installSideChatTaskService, registerSideChatCommand } from './command.ts'
 import { installStableSnapshotService } from './stable-snapshot.ts'
+import {
+  DEFAULT_SIDECHAT_MAX_RETAINED_PER_PARENT,
+  DEFAULT_SIDECHAT_RETENTION_MINUTES,
+  installSideChatRetentionService,
+} from './retention.ts'
 
 export {
   DEFAULT_SIDECHAT_PROVIDER,
@@ -38,6 +43,14 @@ export type {
   SnapshotMessage,
   StableSnapshot,
 } from './stable-snapshot.ts'
+export {
+  DEFAULT_SIDECHAT_MAX_RETAINED_PER_PARENT,
+  DEFAULT_SIDECHAT_RETENTION_MINUTES,
+  installSideChatRetentionService,
+  SIDECHAT_LABEL_PREFIX,
+  SideChatRetentionService,
+} from './retention.ts'
+export type { SideChatRetentionHost } from './retention.ts'
 
 /** Deployment configuration for optional metadata-only event observation. */
 export interface Config {
@@ -47,12 +60,18 @@ export interface Config {
   eventTypes: string[]
   /** DSH provider used to create observable parent-history fork children. */
   subagentProvider: string
+  /** Minutes a completed SideChat remains visible before durable archiving. */
+  retentionMinutes: number
+  /** Maximum completed SideChats visible under one direct parent. */
+  maxRetainedPerParent: number
 }
 /** Runtime validation and defaults for {@link Config}. */
 export const Config: Schema<Config> = Schema.object({
   observeEvents: Schema.boolean().default(true),
   eventTypes: Schema.array(Schema.string()).default([]),
   subagentProvider: Schema.string().default('fork'),
+  retentionMinutes: Schema.number().default(DEFAULT_SIDECHAT_RETENTION_MINUTES),
+  maxRetainedPerParent: Schema.number().default(DEFAULT_SIDECHAT_MAX_RETAINED_PER_PARENT),
 })
 
 /** A privacy-preserving summary of one committed session event. */
@@ -69,7 +88,7 @@ export interface ObservedSessionEvent {
 export const name = 'dsh-sidechat'
 
 /** DSH services that must exist before the command and observer are mounted. */
-export const inject = ['sessions', 'commands', 'subagents']
+export const inject = ['sessions', 'commands', 'subagents', 'sessionPersistence', 'workspaceRegistry']
 
 /**
  * Reduce a DSH event to fields safe for the observer milestone.
@@ -121,6 +140,7 @@ export function shouldObserveEvent(
  */
 export function apply(ctx: Context, config: Config): void {
   installStableSnapshotService(ctx)
+  installSideChatRetentionService(ctx, config.retentionMinutes, config.maxRetainedPerParent)
   installSideChatTaskService(ctx, config.subagentProvider)
   registerSideChatCommand(ctx)
 

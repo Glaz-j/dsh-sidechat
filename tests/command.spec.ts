@@ -29,6 +29,8 @@ const disabledObserver: Config = {
   observeEvents: false,
   eventTypes: [],
   subagentProvider: DEFAULT_SIDECHAT_PROVIDER,
+  retentionMinutes: 30,
+  maxRetainedPerParent: 5,
 }
 const allCapabilities: SubagentCapabilities = {
   outputSchema: true,
@@ -116,6 +118,15 @@ async function mount(provider = new RecordingProvider()): Promise<{
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(CommandRuntime)
   await ctx.plugin(SubagentRuntime)
+  vi.spyOn(ctx.subagents, 'listChildren').mockResolvedValue([])
+  ctx.provide('sessionPersistence', {
+    list: () => Promise.resolve([]),
+    inspect: () => Promise.reject(new Error('unexpected retention inspection')),
+  } as never)
+  ctx.provide('workspaceRegistry', {
+    archivedSessionIds: [],
+    archiveSession: () => Promise.resolve(),
+  } as never)
   ctx.subagents.registerProvider(provider)
   await ctx.plugin(SideChat, { ...disabledObserver, subagentProvider: provider.name })
   const session = ctx.sessions.create(SessionId('sidechat-command'))
@@ -333,6 +344,13 @@ describe('/sidechat native observer subagent', () => {
     test.provider.runs[2]!.result.resolve({ output: [], stopReason: 'completed' })
     await test.ctx.sideChatTasks.whenIdle()
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('dispose failed'))
+
+    const rejectedRetention = { settled: vi.fn(() => Promise.reject('retention failed')) }
+    const isolated = new SideChatTaskService(test.ctx, DEFAULT_SIDECHAT_PROVIDER, rejectedRetention)
+    await isolated.start(test.agent, captureStableSnapshot(test.session), 'bad retention')
+    test.provider.runs[3]!.result.resolve({ output: [], stopReason: 'completed' })
+    await isolated.whenIdle()
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining('retention failed'))
 
     const active = await test.ctx.sideChatTasks.start(test.agent, captureStableSnapshot(test.session), 'active')
     await test.ctx.sideChatTasks.dispose()

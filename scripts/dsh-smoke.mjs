@@ -23,7 +23,23 @@ const commandsPlugin = pathToFileURL(
 const subagentPlugin = pathToFileURL(
   join(resolve(harnessRoot), 'packages', 'subagent', 'subagent', 'src', 'index.ts'),
 ).href
+const sessionPersistencePlugin = pathToFileURL(
+  join(resolve(harnessRoot), 'packages', 'session', 'session-persistence-jsonl', 'src', 'index.ts'),
+).href
+const storagePlugin = pathToFileURL(
+  join(resolve(harnessRoot), 'packages', 'storage', 'storage', 'src', 'index.ts'),
+).href
+const storageJsonPlugin = pathToFileURL(
+  join(resolve(harnessRoot), 'packages', 'storage', 'storage-json', 'src', 'index.ts'),
+).href
+const storageDomainPlugin = pathToFileURL(
+  join(resolve(harnessRoot), 'packages', 'storage', 'storage-domain', 'src', 'index.ts'),
+).href
+const workspacePlugin = pathToFileURL(
+  join(resolve(harnessRoot), 'packages', 'workspace', 'workspace', 'src', 'index.ts'),
+).href
 const sideChatPlugin = pathToFileURL(join(projectRoot, 'lib', 'index.js')).href
+const yamlPath = path => `'${path.replaceAll("'", "''")}'`
 
 await mkdir(scratch, { recursive: true })
 await writeFile(configPath, [
@@ -35,12 +51,30 @@ await writeFile(configPath, [
   `  name: '${commandsPlugin}'`,
   '- id: subagents',
   `  name: '${subagentPlugin}'`,
+  '- id: session-persistence',
+  `  name: '${sessionPersistencePlugin}'`,
+  '  config:',
+  `    root: ${yamlPath(join(scratch, 'sessions'))}`,
+  '- id: storage',
+  `  name: '${storagePlugin}'`,
+  '- id: storage-json',
+  `  name: '${storageJsonPlugin}'`,
+  '  config:',
+  `    root: ${yamlPath(join(scratch, 'storages'))}`,
+  '- id: storage-domain',
+  `  name: '${storageDomainPlugin}'`,
+  '  config:',
+  '    backend: json',
+  '- id: workspace',
+  `  name: '${workspacePlugin}'`,
   '- id: sidechat-observer',
   `  name: '${sideChatPlugin}'`,
   '  config:',
   '    observeEvents: true',
   '    eventTypes: []',
   '    subagentProvider: fork',
+  '    retentionMinutes: 30',
+  '    maxRetainedPerParent: 5',
   '',
 ].join('\n'))
 

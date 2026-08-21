@@ -5,3 +5,5 @@
         observeEvents: true
         eventTypes: []
         subagentProvider: fork
+        retentionMinutes: 30
+        maxRetainedPerParent: 5

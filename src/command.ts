@@ -4,6 +4,7 @@ import type { CommandInvocation, CommandResult } from '@deepseek-ai/dsh-commands
 import type { SubagentRun } from '@deepseek-ai/dsh-subagent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import type { StableSnapshot } from './stable-snapshot.ts'
+import { SIDECHAT_LABEL_PREFIX, type SideChatRetentionService } from './retention.ts'
 
 /** Default DSH provider that forks the parent's latest completed-turn prefix. */
 export const DEFAULT_SIDECHAT_PROVIDER = 'fork'
@@ -185,6 +186,7 @@ export class SideChatTaskService {
   constructor(
     private readonly ctx: Context,
     private readonly providerName = DEFAULT_SIDECHAT_PROVIDER,
+    private readonly retention: Pick<SideChatRetentionService, 'settled'> = ctx.sideChatRetention,
   ) {}
 
   /** Publish one native fork child, then let its Agent loop run independently. */
@@ -194,7 +196,7 @@ export class SideChatTaskService {
     validateProvider(this.ctx, this.providerName)
     const route = resolveSideChatRoute(agent)
     const displayId = newDisplayId()
-    const label = `SideChat · ${displayId}`
+    const label = `${SIDECHAT_LABEL_PREFIX}${displayId}`
     const controller = new AbortController()
 
     const run = await this.ctx.subagents.start(this.providerName, {
@@ -212,7 +214,7 @@ export class SideChatTaskService {
       throw new Error('SideChat stopped while the child agent was starting.')
     }
     const receipt = Object.freeze({ childId: run.id, displayId, label })
-    const done = this.ownRun(run, displayId)
+    const done = this.ownRun(agent.session.id, run, displayId)
       .finally(() => { this.tasks.delete(run.id) })
     this.tasks.set(run.id, {
       ...receipt,
@@ -258,7 +260,7 @@ export class SideChatTaskService {
     await this.whenIdle()
   }
 
-  private async ownRun(run: SubagentRun, displayId: string): Promise<void> {
+  private async ownRun(parentId: SessionId, run: SubagentRun, displayId: string): Promise<void> {
     try {
       const result = await run.result
       if (result.stopReason !== 'completed') {
@@ -271,6 +273,11 @@ export class SideChatTaskService {
         await run.dispose()
       } catch (error: unknown) {
         this.ctx.logger.warn(`SideChat agent ${displayId} disposal failed: ${failureText(error)}`)
+      }
+      try {
+        await this.retention.settled(parentId, run.id)
+      } catch (error: unknown) {
+        this.ctx.logger.warn(`SideChat agent ${displayId} retention failed: ${failureText(error)}`)
       }
     }
   }

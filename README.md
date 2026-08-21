@@ -14,6 +14,7 @@ The current version implements:
 - an isolated SideChat persona over the stable prefix plus the capture-time current-turn packet;
 - an empty child tool allowlist for the initial strictly read-only version;
 - native DSH subagent transcripts, status, timing, cancellation, and Web navigation;
+- automatic archival 30 minutes after completion, with at most five completed SideChats visible per parent;
 - `/sidechat cancel [<request-id>]` for active SideChat children.
 
 It does not yet provide a separate SideChat panel, multi-turn SideChat conversations, promotion into the parent Agent, or a plugin-owned persistence format.
@@ -38,6 +39,8 @@ The command returns after DSH publishes the child, without waiting for its model
 
 The initial observer child receives an empty global tool allowlist. It can explain stable history and the frozen current-turn packet, but cannot poll later parent activity, list the parent's sibling subagents, modify files, run commands, or steer another agent. Parent-bound read-only inspection tools are intentionally deferred instead of exposing the ordinary `list_agents` tool, which would list the SideChat child's own descendants.
 
+Completed SideChats remain in the parent's native subagent list for 30 minutes. Each parent retains at most its five newest completed SideChats; settling a sixth archives the oldest immediately. Running children are never hidden by the capacity rule. Archival is durable and non-destructive: it hides the native child from grouping surfaces but preserves its persisted transcript.
+
 Cancel the newest request, or one shown request id, with:
 
 ```text
@@ -61,6 +64,7 @@ flowchart LR
     A -->|composer unlocks| P[Parent Agent]
     Q -->|own Agent loop| T[Read-only SideChat Transcript]
     T --> W[Native DSH Subagent UI]
+    T -->|settled + retention policy| X[DSH Session Archive]
     O -. no parent changes .-> P
     S -. no parent changes .-> P
     Q -. empty tool allowlist; no parent steering .-> P
@@ -68,7 +72,7 @@ flowchart LR
 
 The observer receives events only after DSH appends them to the session log. The snapshot service finds the latest `turn/end`, copies that closed prefix, and folds it with DSH's canonical surface rules. It then scans the open turn only for append-origin `user/message`, finalized `assistant/message`, and `tool/result` events. Request headers, request context, raw assistant chunks, command lifecycle records, replacement copies, and other internal events are excluded. The packet is capped at 24,000 prompt characters with deterministic middle truncation. Existing snapshots are detached and frozen, so later parent activity cannot change them. SideChat never calls `agent.steer()` or `agent.followup()` on the parent.
 
-DSH's command runtime records the standard log-only `command/run` and `command/done` lifecycle around every slash command. SideChat sets `recordInput: false`, so the private question is absent from the parent command record. It delegates through `ctx.subagents.start('fork', ...)` with a dedicated persona and `{ allow: [] }` tool restriction. DSH owns the child session, full Agent loop, lifecycle events, persistence, and native Web transcript. The plugin owns the returned one-shot run, disposes it after settlement, and aborts and awaits active children during unload.
+DSH's command runtime records the standard log-only `command/run` and `command/done` lifecycle around every slash command. SideChat sets `recordInput: false`, so the private question is absent from the parent command record. It delegates through `ctx.subagents.start('fork', ...)` with a dedicated persona and `{ allow: [] }` tool restriction. DSH owns the child session, full Agent loop, lifecycle events, persistence, native Web transcript, and durable archive set. The plugin owns the returned one-shot run, disposes it after settlement, and then applies the age and per-parent retention policy through `ctx.workspaceRegistry.archiveSession`. Startup reconciliation reconstructs deadlines from persisted child history, so a DSH restart does not reset retention. Plugin unload aborts and awaits active children and cancels pending timers.
 
 The host-side API is available as:
 
@@ -139,6 +143,8 @@ The bundle inserts this default row:
     observeEvents: true
     eventTypes: []
     subagentProvider: fork
+    retentionMinutes: 30
+    maxRetainedPerParent: 5
 ```
 
 An empty `eventTypes` list observes every committed event type. Set an exact allowlist to reduce noise:
@@ -156,6 +162,8 @@ eventTypes:
 Set `observeEvents: false` to keep only lifecycle proof.
 
 `subagentProvider` must name a provider that inherits parent context and supports both `persona` and `toolFilter`. DSH Web ships the compatible `fork` provider used by default.
+
+`retentionMinutes` controls how long a completed SideChat remains visible. `maxRetainedPerParent` controls the number of completed SideChats retained beneath one direct parent. Both values must be positive integers. Running SideChats are exempt until they settle.
 
 ## Roadmap
 

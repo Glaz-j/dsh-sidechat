@@ -12,13 +12,27 @@ import {
   type Config,
 } from '../src/index.ts'
 
-const disabledObserver: Config = { observeEvents: false, eventTypes: [], subagentProvider: 'fork' }
+const disabledObserver: Config = {
+  observeEvents: false,
+  eventTypes: [],
+  subagentProvider: 'fork',
+  retentionMinutes: 30,
+  maxRetainedPerParent: 5,
+}
 
 async function mountRequiredServices(ctx: Context): Promise<void> {
   await ctx.plugin(SessionStore)
   await ctx.plugin(LlmRuntime)
   await ctx.plugin(CommandRuntime)
   await ctx.plugin(SubagentRuntime)
+  ctx.provide('sessionPersistence', {
+    list: () => Promise.resolve([]),
+    inspect: () => Promise.reject(new Error('unexpected retention inspection')),
+  } as never)
+  ctx.provide('workspaceRegistry', {
+    archivedSessionIds: [],
+    archiveSession: () => Promise.resolve(),
+  } as never)
 }
 
 function appendUserMessage(session: Session, text: string): void {
