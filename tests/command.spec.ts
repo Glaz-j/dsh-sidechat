@@ -146,11 +146,11 @@ describe('/sidechat native observer subagent', () => {
     })
     const execution = await test.ctx.commands.execute(test.agent, '/sidechat', new AbortController().signal)
 
-    expect(execution?.result).toMatchObject({ kind: 'success', text: expect.stringContaining('SideChat snapshot ready.') })
+    expect(execution?.result).toMatchObject({ kind: 'success', text: expect.stringContaining('Parallel Chat snapshot ready.') })
     expect(execution?.result.text).toContain('Stable turn: 1')
     expect(execution?.result.text).toContain('Boundary seq: 2')
     expect(execution?.result.text).toContain('Current turn: none (idle)')
-    expect(execution?.result.text).toContain('Running SideChat agents: 0')
+    expect(execution?.result.text).toContain('Running Parallel Chat agents: 0')
     expect(test.provider.requests).toHaveLength(0)
     await test.ctx.fiber.dispose()
   })
@@ -184,7 +184,7 @@ describe('/sidechat native observer subagent', () => {
     expect(test.provider.requests).toHaveLength(1)
     const request = test.provider.requests[0]!
     expect(request.parent).toBe(test.agent)
-    expect(request.label).toMatch(/^SideChat · [\da-f]{8}$/u)
+    expect(request.label).toMatch(/^Parallel Chat · [\da-f]{8}$/u)
     expect(request.agentOptions).toEqual({ provider: 'mock', model: 'sidechat-model', maxTokens: 321 })
     expect(request.toolFilter).toEqual({ allow: [] })
     expect(request.toolFilter?.allow).toBe(SIDECHAT_TOOL_ALLOWLIST)
@@ -305,7 +305,7 @@ describe('/sidechat native observer subagent', () => {
     )
     expect(byCommand?.result).toEqual({
       kind: 'success',
-      text: `Cancellation requested for SideChat ${second.displayId}.`,
+      text: `Cancellation requested for Parallel Chat ${second.displayId}.`,
     })
     await test.ctx.sideChatTasks.whenIdle()
 
@@ -314,13 +314,13 @@ describe('/sidechat native observer subagent', () => {
       '/sidechat cancel missing',
       new AbortController().signal,
     )
-    expect(wrong?.result).toEqual({ kind: 'error', text: 'No running SideChat agent matches "missing".' })
+    expect(wrong?.result).toEqual({ kind: 'error', text: 'No running Parallel Chat agent matches "missing".' })
     const none = await test.ctx.commands.execute(
       test.agent,
       '/sidechat cancel',
       new AbortController().signal,
     )
-    expect(none?.result).toEqual({ kind: 'error', text: 'No SideChat agent is running in this session.' })
+    expect(none?.result).toEqual({ kind: 'error', text: 'No Parallel Chat agent is running in this session.' })
     await test.ctx.fiber.dispose()
   })
 
@@ -355,7 +355,7 @@ describe('/sidechat native observer subagent', () => {
     const active = await test.ctx.sideChatTasks.start(test.agent, captureStableSnapshot(test.session), 'active')
     await test.ctx.sideChatTasks.dispose()
     expect(test.provider.requests.at(-1)?.signal.reason).toEqual(
-      new Error(`SideChat agent ${active.displayId} was cancelled because the plugin stopped.`),
+      new Error(`Parallel Chat agent ${active.displayId} was cancelled because the plugin stopped.`),
     )
     await expect(test.ctx.sideChatTasks.start(test.agent, captureStableSnapshot(test.session), 'again'))
       .rejects.toThrow('shutting down')
@@ -385,14 +385,14 @@ describe('/sidechat native observer subagent', () => {
 
   it('renders empty and defensive summaries', () => {
     const empty = captureStableSnapshot(Session.create(SessionId('empty-summary')))
-    expect(renderSnapshotSummary(empty, 2)).toContain('Running SideChat agents: 2')
+    expect(renderSnapshotSummary(empty, 2)).toContain('Running Parallel Chat agents: 2')
     expect(renderCurrentTurnObservation(empty)).toEqual({
       text: '(no committed model-visible messages)',
       truncated: false,
     })
     const running = Session.create(SessionId('running-summary'))
     running.append('turn/start', { turn: 1 })
-    expect(renderSnapshotSummary(captureStableSnapshot(running))).toContain('SideChat snapshot ready.')
+    expect(renderSnapshotSummary(captureStableSnapshot(running))).toContain('Parallel Chat snapshot ready.')
     const defensive = { ...empty, boundarySeq: 0, turn: 1 } as StableSnapshot
     expect(renderSnapshotSummary(defensive)).toContain('Turn result: unknown')
   })

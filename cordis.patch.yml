@@ -1,6 +1,6 @@
 - insert:
     - id: sidechat-observer
-      name: dsh-sidechat
+      name: dsh-parallel-chat
       config:
         observeEvents: true
         eventTypes: []

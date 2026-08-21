@@ -1,7 +1,7 @@
 import { defineConfig, type UserConfig } from 'tsdown'
 
 const host: UserConfig = {
-  name: 'dsh-sidechat',
+  name: 'dsh-parallel-chat',
   entry: ['src/index.ts'],
   outDir: 'lib',
   format: ['esm'],

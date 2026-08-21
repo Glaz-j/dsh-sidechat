@@ -3,7 +3,7 @@
  * It exposes a closed-turn context boundary without changing an Agent or its
  * durable history.
  *
- * @module dsh-sidechat
+ * @module dsh-parallel-chat
  */
 
 import type { Context } from '@deepseek-ai/cordis'
@@ -60,9 +60,9 @@ export interface Config {
   eventTypes: string[]
   /** DSH provider used to create observable parent-history fork children. */
   subagentProvider: string
-  /** Minutes a completed SideChat remains visible before durable archiving. */
+  /** Minutes a completed Parallel Chat remains visible before durable archiving. */
   retentionMinutes: number
-  /** Maximum completed SideChats visible under one direct parent. */
+  /** Maximum completed Parallel Chats visible under one direct parent. */
   maxRetainedPerParent: number
 }
 /** Runtime validation and defaults for {@link Config}. */
@@ -85,7 +85,7 @@ export interface ObservedSessionEvent {
 }
 
 /** Plugin name displayed by Cordis and in lifecycle messages. */
-export const name = 'dsh-sidechat'
+export const name = 'dsh-parallel-chat'
 
 /** DSH services that must exist before the command and observer are mounted. */
 export const inject = ['sessions', 'commands', 'subagents', 'sessionPersistence', 'workspaceRegistry']
@@ -115,7 +115,7 @@ export function summarizeSessionEvent(
  * @returns One stable, grep-friendly log line.
  */
 export function formatObservedEvent(event: ObservedSessionEvent): string {
-  return `[dsh-sidechat] session=${event.sessionId} seq=${event.seq} event=${event.type}`
+  return `[dsh-parallel-chat] session=${event.sessionId} seq=${event.seq} event=${event.type}`
 }
 
 /**
@@ -145,9 +145,9 @@ export function apply(ctx: Context, config: Config): void {
   registerSideChatCommand(ctx)
 
   ctx.effect(() => {
-    console.log('[dsh-sidechat] plugin loaded (native observer subagent)')
-    return () => console.log('[dsh-sidechat] plugin unloaded')
-  }, 'dsh-sidechat.lifecycle')
+    console.log('[dsh-parallel-chat] plugin loaded (native observer subagent)')
+    return () => console.log('[dsh-parallel-chat] plugin unloaded')
+  }, 'dsh-parallel-chat.lifecycle')
 
   if (!config.observeEvents) return
 

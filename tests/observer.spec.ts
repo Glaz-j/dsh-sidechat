@@ -53,7 +53,7 @@ describe('observer summary', () => {
       type: 'tool/result',
     })
     expect(formatObservedEvent(summary)).toBe(
-      '[dsh-sidechat] session=parent-session seq=7 event=tool/result',
+      '[dsh-parallel-chat] session=parent-session seq=7 event=tool/result',
     )
   })
 
@@ -77,7 +77,7 @@ describe('Cordis plugin', () => {
 
     expect(session.events).toHaveLength(before + 1)
     expect(log).toHaveBeenCalledWith(
-      '[dsh-sidechat] session=isolation-probe seq=0 event=turn/start',
+      '[dsh-parallel-chat] session=isolation-probe seq=0 event=turn/start',
     )
     await ctx.fiber.dispose()
   })
@@ -119,7 +119,7 @@ describe('Cordis plugin', () => {
 
     expect(log).not.toHaveBeenCalledWith(expect.stringContaining('event=turn/start'))
     expect(log).toHaveBeenCalledWith(
-      '[dsh-sidechat] session=filtered-probe seq=1 event=turn/end',
+      '[dsh-parallel-chat] session=filtered-probe seq=1 event=turn/end',
     )
     await ctx.fiber.dispose()
   })

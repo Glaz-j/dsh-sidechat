@@ -139,7 +139,7 @@ export class StableSnapshotService {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Stable parent-session snapshot provider installed by dsh-sidechat. */
+    /** Stable parent-session snapshot provider installed by dsh-parallel-chat. */
     sideChatSnapshots: StableSnapshotService
   }
 }

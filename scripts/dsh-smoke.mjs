@@ -118,12 +118,12 @@ try {
     throw new Error(`DSH Loader smoke exited ${String(result.code)} (${String(result.signal)})`)
   }
   const expected = [
-    '[dsh-sidechat] plugin loaded (native observer subagent)',
-    '[dsh-sidechat] session=sidechat-loader-smoke seq=0 event=turn/start',
-    '[dsh-sidechat] session=sidechat-loader-smoke seq=2 event=turn/end',
+    '[dsh-parallel-chat] plugin loaded (native observer subagent)',
+    '[dsh-parallel-chat] session=sidechat-loader-smoke seq=0 event=turn/start',
+    '[dsh-parallel-chat] session=sidechat-loader-smoke seq=2 event=turn/end',
     '[dsh-smoke] /sidechat snapshot boundary=2 messages=1',
     '[dsh-smoke] real fork kept a closed seed, received the frozen current turn, ran tool-free, and settled',
-    '[dsh-sidechat] plugin unloaded',
+    '[dsh-parallel-chat] plugin unloaded',
   ]
   for (const line of expected) {
     if (!stdout.includes(line)) throw new Error(`missing loader proof: ${line}`)

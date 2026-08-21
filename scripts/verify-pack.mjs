@@ -8,6 +8,9 @@ if (archives.length !== 1) {
 }
 
 const manifest = JSON.parse(await readFile('package.json', 'utf8'))
+if (manifest.name !== 'dsh-parallel-chat') {
+  throw new Error(`unexpected npm package name: ${String(manifest.name)}`)
+}
 if (manifest.dsh?.bundle?.patch !== './cordis.patch.yml') {
   throw new Error('package manifest does not declare the DSH bundle patch')
 }

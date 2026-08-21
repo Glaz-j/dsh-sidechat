@@ -1,7 +1,7 @@
 {
-  "name": "dsh-sidechat",
+  "name": "dsh-parallel-chat",
   "version": "0.1.0-beta.1",
-  "description": "Run isolated, read-only side conversations alongside an active DeepSeek Harness agent.",
+  "description": "Run isolated, read-only parallel conversations alongside an active DeepSeek Harness agent.",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -41,17 +41,18 @@
     "dsh",
     "dsh-plugin",
     "cordis",
-    "sidechat"
+    "sidechat",
+    "parallel-chat"
   ],
   "author": "Glaz-j",
   "license": "MIT",
-  "homepage": "https://github.com/Glaz-j/dsh-sidechat#readme",
+  "homepage": "https://github.com/Glaz-j/dsh-parallel-chat#readme",
   "bugs": {
-    "url": "https://github.com/Glaz-j/dsh-sidechat/issues"
+    "url": "https://github.com/Glaz-j/dsh-parallel-chat/issues"
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Glaz-j/dsh-sidechat.git"
+    "url": "git+https://github.com/Glaz-j/dsh-parallel-chat.git"
   },
   "publishConfig": {
     "access": "public",

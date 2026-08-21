@@ -4,8 +4,11 @@ import type {} from '@deepseek-ai/dsh-session-persistence'
 import type { SubagentListEntry } from '@deepseek-ai/dsh-subagent'
 import type {} from '@deepseek-ai/dsh-workspace'
 
-/** Durable label prefix used to distinguish SideChat children from other subagents. */
-export const SIDECHAT_LABEL_PREFIX = 'SideChat · '
+/** Durable label prefix used to distinguish Parallel Chat children from other subagents. */
+export const SIDECHAT_LABEL_PREFIX = 'Parallel Chat · '
+
+/** Pre-release label retained so existing Git-installed children still reconcile. */
+const LEGACY_SIDECHAT_LABEL_PREFIX = 'SideChat · '
 
 /** Default time that a completed SideChat remains visible. */
 export const DEFAULT_SIDECHAT_RETENTION_MINUTES = 30
@@ -38,7 +41,10 @@ function lastSettlementTime(events: readonly SessionEvent[], fallback: number): 
 function isSideChat(entry: SubagentListEntry): entry is Extract<SubagentListEntry, { kind: 'child' }> {
   return entry.kind === 'child'
     && entry.mode === 'one-shot'
-    && entry.label?.startsWith(SIDECHAT_LABEL_PREFIX) === true
+    && (
+      entry.label?.startsWith(SIDECHAT_LABEL_PREFIX) === true
+      || entry.label?.startsWith(LEGACY_SIDECHAT_LABEL_PREFIX) === true
+    )
 }
 
 function compareNewestFirst(left: SettledSideChat, right: SettledSideChat): number {
@@ -61,10 +67,10 @@ export class SideChatRetentionService {
     private readonly now: () => number = Date.now,
   ) {
     if (!Number.isSafeInteger(retentionMs) || retentionMs < 1) {
-      throw new Error('SideChat retention duration must be a positive integer number of milliseconds.')
+      throw new Error('Parallel Chat retention duration must be a positive integer number of milliseconds.')
     }
     if (!Number.isSafeInteger(maxRetainedPerParent) || maxRetainedPerParent < 1) {
-      throw new Error('SideChat retained-count limit must be a positive integer.')
+      throw new Error('Parallel Chat retained-count limit must be a positive integer.')
     }
   }
 
@@ -164,7 +170,7 @@ export class SideChatRetentionService {
 
 declare module '@deepseek-ai/cordis' {
   interface Context {
-    /** Completed-child retention policy installed by dsh-sidechat. */
+    /** Completed-child retention policy installed by dsh-parallel-chat. */
     sideChatRetention: SideChatRetentionService
   }
 }
@@ -176,7 +182,7 @@ export function installSideChatRetentionService(
   maxRetainedPerParent = DEFAULT_SIDECHAT_MAX_RETAINED_PER_PARENT,
 ): SideChatRetentionService {
   if (!Number.isSafeInteger(retentionMinutes) || retentionMinutes < 1) {
-    throw new Error('SideChat retentionMinutes must be a positive integer.')
+    throw new Error('Parallel Chat retentionMinutes must be a positive integer.')
   }
   const service = new SideChatRetentionService({
     get archivedSessionIds() { return ctx.workspaceRegistry.archivedSessionIds },
@@ -188,9 +194,9 @@ export function installSideChatRetentionService(
   ctx.provide('sideChatRetention', service)
   ctx.effect(() => {
     void service.reconcile().catch((error: unknown) => {
-      ctx.logger.warn(`SideChat retention reconciliation failed: ${error instanceof Error ? error.message : String(error)}`)
+      ctx.logger.warn(`Parallel Chat retention reconciliation failed: ${error instanceof Error ? error.message : String(error)}`)
     })
     return async () => { await service.dispose() }
-  }, 'dsh-sidechat.retention')
+  }, 'dsh-parallel-chat.retention')
   return service
 }

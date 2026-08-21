@@ -52,6 +52,19 @@ afterEach(() => {
 })
 
 describe('SideChat retention', () => {
+  it('reconciles children created before the Parallel Chat rename', async () => {
+    const host = new Host()
+    host.headers = [header('legacy', 1)]
+    host.entries.set(parent, [child('legacy', 'inactive', 'SideChat · legacy')])
+    host.events.set(sid('legacy'), [event('turn/end', 1)])
+    const service = new SideChatRetentionService(host, 1, 5, () => 2)
+
+    await service.reconcile()
+
+    expect(host.archives).toEqual([sid('legacy')])
+    await service.dispose()
+  })
+
   it('archives a completed child when its visibility window expires', async () => {
     vi.useFakeTimers()
     vi.setSystemTime(10_000)
