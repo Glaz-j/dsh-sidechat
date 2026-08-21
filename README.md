@@ -7,7 +7,7 @@
 
 Ask a private, read-only question about an active [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) task without interrupting the parent Agent.
 
-> **Developer preview:** GitHub and local installations are ready for testing. The npm release will follow after the archive-visibility integration lands in an official DSH release. See [Compatibility](#compatibility).
+> **Developer preview:** SideChat is being released as an npm prerelease. Its core chat flow works with the official DSH developer preview; native archived-session visibility still has a host limitation. See [Compatibility](#compatibility).
 
 ## Why SideChat?
 
@@ -32,14 +32,14 @@ Git dependencies run this package's `prepare` script. pnpm may pause the first i
 
 ### Install from npm
 
-After the first public release:
+Install the prerelease with the `beta` tag:
 
 ```powershell
-pnpm dsh plugin --profile web add dsh-sidechat
+pnpm dsh plugin --profile web add dsh-sidechat@beta
 pnpm dsh web
 ```
 
-The package is not published to npm yet. npm is optional for DSH, but it provides a simpler and more reproducible installation than building a Git dependency.
+The `beta` tag makes the preview status explicit. npm is optional for DSH, but it provides a simpler and more reproducible installation than building a Git dependency.
 
 ## Use
 
@@ -91,9 +91,9 @@ This is a capture-time snapshot. SideChat does not continue following parent eve
 
 ## Retention
 
-Completed SideChats remain visible beneath their parent for 30 minutes. Each parent displays at most its five newest completed SideChats; when a sixth settles, the oldest is archived immediately. Running children are never hidden by the capacity rule.
+Completed SideChats remain in the plugin's retained set for 30 minutes. Each parent retains at most its five newest completed SideChats; when a sixth settles, the oldest is archived immediately. Running children are never archived by the capacity rule.
 
-Archival is non-destructive: the transcript stays persisted, but the archived child is removed from normal grouping surfaces. Startup reconciliation restores deadlines after a DSH restart.
+Archival is non-destructive: the transcript stays persisted and the plugin no longer treats that child as retained. Startup reconciliation restores deadlines after a DSH restart. In official DSH `0.1.0-rc.7`, an archived child may remain visible in the native subagent list; see [Compatibility](#compatibility).
 
 ## Architecture
 
@@ -131,9 +131,9 @@ const snapshot = ctx.sideChatSnapshots.capture(sessionId)
 
 ## Compatibility
 
-The core command, snapshot, fork, isolation, and cancellation paths use public DSH plugin seams. The current retention UI behavior also requires host support for filtering archived child sessions from native subagent lists and counts.
+The core command, snapshot, fork, isolation, cancellation, scheduling, and persistence paths use public DSH plugin seams and work with the official DSH developer preview.
 
-That host integration exists in the development setup used by this project but is not yet present in the official DSH `0.1.0-rc.7` release. Until it is upstreamed and released, GitHub installation is intended for development testing and the complete retention behavior requires the matching DSH host patch. The first npm release should be cut only after that compatibility point is resolved.
+DSH `0.1.0-rc.7` does not currently filter plugin-archived sessions from its native subagent list and count. Consequently, SideChat's retention policy still runs, but an archived transcript may remain discoverable through the host UI. A host-side experiment exists in the project's development fork, but no upstream change is required or assumed for this prerelease. Treat `0.1.0-beta.1` as an integration preview while this presentation gap remains.
 
 ## Configuration
 
@@ -199,7 +199,7 @@ DSH can install a plugin from GitHub, a local path, a tarball, or npm. Publishin
 - Parent-bound read-only status and event-query tools.
 - Ephemeral multi-turn SideChats with explicit disposal.
 - Explicit discard and follow-up promotion.
-- Upstream-compatible archive visibility and an npm release.
+- Host-independent archive presentation and a stable npm release.
 
 ## License
 

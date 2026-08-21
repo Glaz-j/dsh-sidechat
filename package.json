@@ -1,6 +1,6 @@
 {
   "name": "dsh-sidechat",
-  "version": "0.1.0",
+  "version": "0.1.0-beta.1",
   "description": "Run isolated, read-only side conversations alongside an active DeepSeek Harness agent.",
   "type": "module",
   "main": "lib/index.js",

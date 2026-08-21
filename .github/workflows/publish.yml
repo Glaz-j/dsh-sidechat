@@ -41,4 +41,11 @@ jobs:
         run: pnpm run check
 
       - name: Publish to npm
-        run: npm publish
+        shell: bash
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          if [[ "$PACKAGE_VERSION" == *-* ]]; then
+            npm publish --tag beta
+          else
+            npm publish
+          fi
