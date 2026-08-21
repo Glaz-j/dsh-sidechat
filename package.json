@@ -1,7 +1,7 @@
 {
   "name": "dsh-sidechat",
   "version": "0.1.0",
-  "description": "An isolated side conversation plugin for DeepSeek Harness.",
+  "description": "Run isolated, read-only side conversations alongside an active DeepSeek Harness agent.",
   "type": "module",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
@@ -17,6 +17,7 @@
     "lib/index.d.ts",
     "cordis.patch.yml",
     "README.md",
+    "README.zh.md",
     "LICENSE"
   ],
   "scripts": {
@@ -44,9 +45,17 @@
   ],
   "author": "Glaz-j",
   "license": "MIT",
+  "homepage": "https://github.com/Glaz-j/dsh-sidechat#readme",
+  "bugs": {
+    "url": "https://github.com/Glaz-j/dsh-sidechat/issues"
+  },
   "repository": {
     "type": "git",
-    "url": "git+ssh://git@github.com/Glaz-j/dsh-sidechat.git"
+    "url": "git+https://github.com/Glaz-j/dsh-sidechat.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
   },
   "engines": {
     "node": "^22.19.0 || >=24.0.0"

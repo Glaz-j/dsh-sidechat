@@ -17,5 +17,14 @@ if (manifest.dsh?.client !== undefined || manifest.exports?.['./client'] !== und
 if (!manifest.peerDependencies?.['@deepseek-ai/dsh-subagent']) {
   throw new Error('package manifest does not declare the native subagent seam')
 }
+if (
+  manifest.publishConfig?.access !== 'public'
+  || manifest.publishConfig?.registry !== 'https://registry.npmjs.org/'
+) {
+  throw new Error('package manifest is not configured for public npm publication')
+}
+if (!manifest.files?.includes('README.md') || !manifest.files?.includes('README.zh.md')) {
+  throw new Error('package archive does not declare both English and Chinese README files')
+}
 
-console.log(`[pack-check] ${archives[0]} declares the Host patch and native subagent dependency`)
+console.log(`[pack-check] ${archives[0]} declares the Host patch, native subagent dependency, bilingual docs, and public npm metadata`)
